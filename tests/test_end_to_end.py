@@ -199,5 +199,18 @@ class TestResumeOptimizer(unittest.TestCase):
         self.assertTrue(os.path.exists(cl_path))
         print(f"Generated {cl_path}")
 
+        # Talking Points PDF
+        suggestions = [{
+            "original_text": "Before text",
+            "replacement_text": "After text",
+            "reason": "Better word",
+            "talking_point": "I improved X to Y.",
+            "section": "Experience"
+        }]
+        tp_path = f"{self.output_dir}/test_talking_points.pdf"
+        gen.generate_talking_points_pdf(suggestions, self.job_title, tp_path)
+        self.assertTrue(os.path.exists(tp_path))
+        print(f"Generated {tp_path}")
+
 if __name__ == '__main__':
     unittest.main()

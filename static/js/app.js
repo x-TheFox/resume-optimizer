@@ -312,6 +312,11 @@
                 `<a href="${dl.cover_letter}" class="btn-download">✉️ Cover Letter PDF</a>`
             );
         }
+        if (dl.talking_points) {
+            downloadLinks.push(
+                `<a href="${dl.talking_points}" class="btn-download">🗣️ Talking Points PDF</a>`
+            );
+        }
         if (downloadLinks.length > 0) {
             DOM.downloadsBar.style.display = 'block';
             DOM.downloadsButtons.innerHTML = downloadLinks.join('');

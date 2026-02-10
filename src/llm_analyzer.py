@@ -142,30 +142,49 @@ Be specific and reference actual content from the resume."""
     ) -> dict:
         """Score Skills, Experience, and Impact sections 0-100."""
         system_prompt = (
-            "You are a resume scoring engine. You must respond with ONLY valid JSON, "
-            "no other text before or after. "
-            "Score the resume on three dimensions against the job requirements."
+            "You are a brutally honest resume scoring engine used by top-tier "
+            "recruiting firms. You must respond with ONLY valid JSON \u2014 no "
+            "markdown, no explanation, no text before or after the JSON object. "
+            "You are known for tough, realistic grading. Most resumes score "
+            "between 30-65. A score above 75 is exceptional and rare."
         )
         user_prompt = f"""## Target Role: {job_title}
 
 ## Job Description:
 {job_description}
 
-## Success Profile:
+## Success Profile (from market research):
 {profile_text}
 
-## Resume:
+## Candidate Resume:
 {resume_text}
 
 ---
 
-Score this resume on exactly three dimensions, each 0-100.
-Respond with ONLY this JSON format, nothing else:
-{{"skills": <int>, "experience": <int>, "impact": <int>}}
+Score this resume on exactly three dimensions using STRICT calibration:
 
-- skills: How well the candidate's skills match the role requirements
-- experience: How relevant and sufficient the candidate's experience is
-- impact: How well the resume demonstrates measurable impact and results"""
+CALIBRATION GUIDE (follow this precisely):
+  0-20:  Unrelated field, no relevant skills or experience
+  21-40: Some overlap but major gaps \u2014 missing most required skills,
+         limited relevant experience, vague or no metrics
+  41-60: Moderate fit \u2014 has some required skills but missing key ones,
+         experience is partially relevant, few quantified achievements
+  61-75: Good fit \u2014 most required skills present, relevant experience,
+         some measurable results, but still has notable gaps
+  76-85: Strong fit \u2014 nearly all skills match, deep relevant experience,
+         strong quantified impact, minor gaps only
+  86-100: Near-perfect \u2014 all skills match, extensive relevant experience,
+          exceptional quantified results, would be a top-percentile hire
+
+PENALTIES (apply these strictly):
+  - Missing a REQUIRED skill from JD: -10 per skill
+  - No quantified metrics in bullet points: cap Impact at 40
+  - Experience in different domain/stack: -15 to Experience
+  - Job titles don't match seniority level: -10 to Experience
+  - Generic descriptions ("worked on", "helped with"): -10 to Impact
+
+Respond with ONLY this JSON, nothing else:
+{{"skills": <int>, "experience": <int>, "impact": <int>}}"""
 
         response = self._call_groq(system_prompt, user_prompt)
         try:
@@ -184,9 +203,11 @@ Respond with ONLY this JSON format, nothing else:
     ) -> dict:
         """Compute Technical Match and Cultural Match scores."""
         system_prompt = (
-            "You are a hiring match evaluator. You must respond with ONLY valid JSON, "
-            "no other text before or after. "
-            "Evaluate the candidate's fit on two dimensions."
+            "You are a senior technical recruiter at a FAANG company. "
+            "You must respond with ONLY valid JSON \u2014 no markdown, no "
+            "explanation, no text before or after the JSON object. "
+            "You evaluate candidates with high standards. Most candidates "
+            "score between 25-55 for technical match against top companies."
         )
         cultural_info = (
             f"Company values: {success_profile.get('company_values', 'N/A')}\n"
@@ -204,12 +225,33 @@ Respond with ONLY this JSON format, nothing else:
 
 ---
 
-Evaluate and score these two dimensions, each 0-100:
-Respond with ONLY this JSON, nothing else:
-{{"technical_match": <int>, "cultural_match": <int>}}
+Evaluate and score these two dimensions using STRICT calibration:
 
-- technical_match: How well the candidate's technical skills align with the role
-- cultural_match: How well the resume's language and presentation match the company's culture and values"""
+CALIBRATION GUIDE:
+  0-20:  No technical overlap / completely wrong culture fit
+  21-40: Weak match \u2014 some technologies overlap but missing core stack,
+         resume language doesn't reflect company values
+  41-60: Partial match \u2014 has some required technologies, moderate
+         alignment with company culture
+  61-75: Good match \u2014 most technical requirements met, resume tone
+         and achievements align with company expectations
+  76-90: Strong match \u2014 deep expertise in required tech stack,
+         resume clearly reflects company values and work style
+  91-100: Exceptional \u2014 exact tech stack match, language/tone perfectly
+          mirrors company culture (extremely rare)
+
+TECHNICAL MATCH PENALTIES:
+  - Each required technology NOT mentioned: -8 points
+  - Technology mentioned but no demonstrated proficiency: -5 points
+  - Wrong seniority level for role: -15 points
+
+CULTURAL MATCH PENALTIES:
+  - Resume uses formal tone but company is casual (or vice versa): -15
+  - No mention of collaboration/teamwork for team-oriented company: -10
+  - No evidence of values alignment: -10
+
+Respond with ONLY this JSON, nothing else:
+{{"technical_match": <int>, "cultural_match": <int>}}"""
 
         response = self._call_groq(system_prompt, user_prompt)
         try:
@@ -225,39 +267,72 @@ Respond with ONLY this JSON, nothing else:
     def _ats_simulation(self, resume_text: str) -> dict:
         """Simulate a rigid ATS parser and evaluate readability."""
         system_prompt = (
-            "You are a strict Applicant Tracking System (ATS) parser. "
-            "You must respond with ONLY valid JSON, no other text. "
-            "Evaluate whether a resume can be parsed correctly by automated systems."
+            "You are an Applicant Tracking System (ATS) compatibility analyzer. "
+            "CRITICAL: Your entire response must be a single JSON object. "
+            "Do NOT include any text, markdown formatting, code fences, or "
+            "explanation \u2014 ONLY the raw JSON object. Example of a valid "
+            'response: {"score": 65, "warnings": ["Missing Skills section"]}'
         )
         user_prompt = f"""## Resume Content:
 {resume_text}
 
 ---
 
-Analyze this resume for ATS compatibility. Check for:
-1. Standard section headers (Education, Experience, Skills, etc.)
-2. Parseable date formats
-3. Contact information present
-4. No complex formatting issues (tables, columns, graphics mentions)
-5. Keyword density for searchability
-6. Consistent formatting patterns
+Analyze this resume for ATS compatibility. Check each item:
 
-Respond with ONLY this JSON, nothing else:
-{{"score": <int 0-100>, "warnings": ["warning1", "warning2", ...]}}
+1. SECTION HEADERS: Does it use standard headers? (Education, Experience,
+   Skills, Summary/Objective, Projects, Certifications)
+   - Missing a standard section: -10 per section
+2. CONTACT INFO: Email, phone, location present?
+   - Missing any: -5 each
+3. DATE FORMATS: Are dates parseable? (MM/YYYY, Month YYYY, YYYY-Present)
+   - Inconsistent or missing dates: -10
+4. FORMATTING: Any tables, columns, images, or graphics?
+   - Complex formatting detected: -15
+5. KEYWORD DENSITY: Does the resume contain relevant industry keywords?
+   - Low keyword density: -10
+6. LENGTH: Is it appropriate? (1-2 pages ideal)
+   - Too short (under 200 words): -15
+7. CONSISTENCY: Consistent bullet style, tense, formatting?
+   - Inconsistencies: -5
 
-The score should reflect how well an ATS can parse and categorize this resume.
-Warnings should be specific, actionable items."""
+Start from 100 and subtract penalties.
+
+Your response must be ONLY this JSON object:
+{{"score": <int 0-100>, "warnings": ["specific warning 1", "specific warning 2"]}}"""
 
         response = self._call_groq(system_prompt, user_prompt)
         try:
             result = json.loads(self._extract_json(response))
+            # Handle case where result might be a list
+            if isinstance(result, list):
+                logger.warning("ATS returned list instead of dict, using first item")
+                result = result[0] if result else {}
             return {
                 "score": max(0, min(100, result.get("score", 50))),
                 "warnings": result.get("warnings", []),
             }
-        except (json.JSONDecodeError, ValueError, AttributeError) as e:
-            logger.error("Failed to parse ATS result: %s", e)
-            return {"score": 50, "warnings": ["Unable to complete ATS analysis"]}
+        except (json.JSONDecodeError, ValueError, AttributeError, IndexError) as e:
+            logger.error("Failed to parse ATS result: %s | Raw: %s", e, response[:300])
+            # Last-resort regex extraction
+            import re
+            try:
+                score_match = re.search(r'"score"\s*:\s*(\d+)', response)
+                if score_match:
+                    score = int(score_match.group(1))
+                    warnings_match = re.search(
+                        r'"warnings"\s*:\s*\[(.*?)\]', response, re.DOTALL
+                    )
+                    warnings = []
+                    if warnings_match:
+                        warnings = re.findall(r'"([^"]+)"', warnings_match.group(1))
+                    return {
+                        "score": max(0, min(100, score)),
+                        "warnings": warnings,
+                    }
+            except Exception:
+                pass
+            return {"score": 50, "warnings": ["ATS analysis could not be completed"]}
 
     def _generate_suggestions(
         self,

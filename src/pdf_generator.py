@@ -226,6 +226,143 @@ class PDFGenerator:
         doc.build(elements)
         logger.info("Cover letter PDF saved to: %s", output_path)
 
+    def generate_talking_points_pdf(
+        self, suggestions: list, job_title: str, output_path: str
+    ):
+        """
+        Generate a Talking Points PDF that documents every resume edit
+        so the candidate can explain changes in interviews.
+
+        Args:
+            suggestions: List of suggestion dicts with original_text,
+                         replacement_text, reason, talking_point, section
+            job_title: Target job title for the header
+            output_path: Path to save the PDF
+        """
+        doc = SimpleDocTemplate(
+            output_path,
+            pagesize=letter,
+            topMargin=0.6 * inch,
+            bottomMargin=0.6 * inch,
+            leftMargin=0.75 * inch,
+            rightMargin=0.75 * inch,
+        )
+
+        elements = []
+
+        # Title
+        elements.append(Paragraph(
+            "Interview Talking Points", self.styles["DocTitle"]
+        ))
+        elements.append(Paragraph(
+            f"Prepared responses for every resume optimization — "
+            f"<b>{self._escape(job_title)}</b> role",
+            self.styles["DocSubtitle"],
+        ))
+        elements.append(HRFlowable(
+            width="100%", thickness=1, color=HexColor("#4f8cff"),
+            spaceAfter=14, spaceBefore=4,
+        ))
+
+        # Custom small styles for diffs
+        diff_old_style = ParagraphStyle(
+            name="DiffOld",
+            parent=self.styles["Normal"],
+            fontSize=9.5,
+            textColor=HexColor("#888888"),
+            leftIndent=16,
+            leading=14,
+            spaceAfter=2,
+        )
+        diff_new_style = ParagraphStyle(
+            name="DiffNew",
+            parent=self.styles["Normal"],
+            fontSize=9.5,
+            textColor=HexColor("#1a1a2e"),
+            leftIndent=16,
+            leading=14,
+            spaceAfter=6,
+        )
+        reason_style = ParagraphStyle(
+            name="Reason",
+            parent=self.styles["Normal"],
+            fontSize=10,
+            textColor=HexColor("#4a4a6a"),
+            leftIndent=16,
+            leading=14,
+            spaceAfter=4,
+        )
+        tp_style = ParagraphStyle(
+            name="TalkingPt",
+            parent=self.styles["Normal"],
+            fontSize=10.5,
+            textColor=HexColor("#2d2d44"),
+            leftIndent=16,
+            leading=15,
+            spaceAfter=8,
+        )
+
+        for i, s in enumerate(suggestions, 1):
+            section = s.get("section", "General")
+            original = s.get("original_text", "")
+            replacement = s.get("replacement_text", "")
+            reason = s.get("reason", "")
+            point = s.get("talking_point", "")
+
+            # Section header
+            elements.append(Paragraph(
+                f"Edit {i}: {self._escape(section)}",
+                self.styles["SectionHeader"],
+            ))
+
+            # Before / after
+            if original:
+                elements.append(Paragraph(
+                    f"<b>Before:</b> <strike>{self._escape(original)}</strike>",
+                    diff_old_style,
+                ))
+            if replacement:
+                elements.append(Paragraph(
+                    f"<b>After:</b> {self._escape(replacement)}",
+                    diff_new_style,
+                ))
+
+            # Reason
+            if reason:
+                elements.append(Paragraph(
+                    f"<i>Why: {self._escape(reason)}</i>",
+                    reason_style,
+                ))
+
+            # Talking point
+            if point:
+                elements.append(Paragraph(
+                    f"🎤 <b>Say in interview:</b> {self._escape(point)}",
+                    tp_style,
+                ))
+
+            # Divider between edits
+            if i < len(suggestions):
+                elements.append(HRFlowable(
+                    width="80%", thickness=0.4, color=HexColor("#dddddd"),
+                    spaceAfter=6, spaceBefore=6,
+                ))
+
+        # Footer tip
+        elements.append(Spacer(1, 16))
+        elements.append(HRFlowable(
+            width="100%", thickness=0.5, color=HexColor("#cccccc"),
+            spaceAfter=8, spaceBefore=4,
+        ))
+        elements.append(Paragraph(
+            "<i>💡 Review each talking point before your interview. "
+            "Practice saying them aloud in 30-60 seconds each.</i>",
+            self.styles["QuestionText"],
+        ))
+
+        doc.build(elements)
+        logger.info("Talking points PDF saved to: %s", output_path)
+
     def _escape(self, text: str) -> str:
         """Escape special XML characters for ReportLab paragraphs."""
         return (
@@ -242,3 +379,4 @@ class PDFGenerator:
         text = text.replace("<", "&lt;").replace(">", "&gt;")
         text = text.replace("%%BR%%", "<br/>")
         return text
+

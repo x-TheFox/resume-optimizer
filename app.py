@@ -134,9 +134,7 @@ def analyze():
         if auto_apply and analysis.get("suggestions"):
             edit_results = editor.apply_suggestions(analysis["suggestions"])
 
-            # Add talking points page
-            editor.add_talking_points_page(analysis["suggestions"])
-
+            # Save optimized resume — NO talking points appended
             optimized_filename = f"{session_id}_optimized_{original_name}"
             optimized_path = os.path.join(Config.OUTPUT_FOLDER, optimized_filename)
             editor.save(optimized_path)
@@ -145,6 +143,7 @@ def analyze():
         # --- Step 5: Generate PDFs ---
         interview_pdf_filename = None
         cover_letter_pdf_filename = None
+        talking_points_pdf_filename = None
         pdf_gen = PDFGenerator()
 
         if analysis.get("interview_questions"):
@@ -166,6 +165,16 @@ def analyze():
                 output_path=cover_letter_path,
             )
 
+        # Generate talking points as a SEPARATE PDF (not in the resume)
+        if analysis.get("suggestions"):
+            talking_points_pdf_filename = f"{session_id}_talking_points.pdf"
+            tp_path = os.path.join(Config.OUTPUT_FOLDER, talking_points_pdf_filename)
+            pdf_gen.generate_talking_points_pdf(
+                suggestions=analysis["suggestions"],
+                job_title=job_title,
+                output_path=tp_path,
+            )
+
         # --- Build response ---
         response = {
             "success": True,
@@ -183,6 +192,7 @@ def analyze():
                 "optimized_resume": f"/download/{optimized_filename}" if optimized_filename else None,
                 "interview_prep": f"/download/{interview_pdf_filename}" if interview_pdf_filename else None,
                 "cover_letter": f"/download/{cover_letter_pdf_filename}" if cover_letter_pdf_filename else None,
+                "talking_points": f"/download/{talking_points_pdf_filename}" if talking_points_pdf_filename else None,
             },
             "research_summary": {
                 "company": company_name or "Not specified",

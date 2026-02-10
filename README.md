@@ -14,14 +14,18 @@ Upload your `.docx` resume, provide a target job description, and let Llama-4-Ma
 - **Auto-Optimize** — In-place `.docx` editing that preserves bold, fonts, margins
 - **Interview Prep PDF** — Likely questions based on your resume's weaknesses
 - **Cover Letter Drafter** — References specific research findings
-- **Interview Talking Points** — Defend every auto-applied edit
+- **Interview Talking Points** — Defend every auto-applied edit (download separate PDF)
 
 ## Quick Start
-
+            
 ```bash
 # Clone
 git clone https://github.com/x-TheFox/resume-optimizer.git
 cd resume-optimizer
+
+# Virtual Env (Recommended)
+python3 -m venv .venv
+source .venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
@@ -34,7 +38,7 @@ cp .env.example .env
 python app.py
 ```
 
-Open [http://localhost:5000](http://localhost:5000) in your browser.
+Open [http://localhost:5001](http://localhost:5001) in your browser.
 
 ## Tech Stack
 

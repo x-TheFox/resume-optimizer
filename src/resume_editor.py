@@ -232,62 +232,7 @@ class ResumeEditor:
             last_run_text = last_run.text or ""
             last_run.text = last_run_text[last_char_offset + 1:]
 
-    def add_talking_points_page(self, talking_points: list):
-        """
-        Append a page break and a styled "Interview Talking Points" section.
 
-        Args:
-            talking_points: List of suggestion dicts with 'talking_point' fields
-        """
-        if not talking_points:
-            return
-
-        # Add page break
-        self.document.add_page_break()
-
-        # Add header
-        heading = self.document.add_heading("Interview Talking Points", level=1)
-
-        # Add subtitle
-        subtitle = self.document.add_paragraph(
-            "Prepared talking points to defend each resume optimization in interviews."
-        )
-
-        for i, tp in enumerate(talking_points):
-            original = tp.get("original_text", "")
-            replacement = tp.get("replacement_text", "")
-            reason = tp.get("reason", "")
-            point = tp.get("talking_point", "")
-
-            # Section header
-            self.document.add_heading(f"Edit {i + 1}: {tp.get('section', 'General')}", level=2)
-
-            # Change description
-            p = self.document.add_paragraph()
-            runner = p.add_run("Changed: ")
-            runner.bold = True
-            p.add_run(f'"{original[:80]}..."' if len(original) > 80 else f'"{original}"')
-
-            p2 = self.document.add_paragraph()
-            runner2 = p2.add_run("To: ")
-            runner2.bold = True
-            p2.add_run(f'"{replacement[:80]}..."' if len(replacement) > 80 else f'"{replacement}"')
-
-            if reason:
-                p3 = self.document.add_paragraph()
-                runner3 = p3.add_run("Why: ")
-                runner3.bold = True
-                p3.add_run(reason)
-
-            if point:
-                p4 = self.document.add_paragraph()
-                runner4 = p4.add_run("Talking Point: ")
-                runner4.bold = True
-                runner4.italic = True
-                p4.add_run(point)
-
-            # Add spacing
-            self.document.add_paragraph("")
 
     def save(self, output_path: str):
         """
