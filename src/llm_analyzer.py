@@ -494,6 +494,8 @@ Respond with ONLY a JSON array of strings (one per edit), nothing else:
 
     def _extract_json(self, text: str) -> str:
         """Extract JSON from a response that might contain markdown fences or extra text."""
+        text = text.strip()
+        
         # Try to find JSON in code fences
         if "```json" in text:
             start = text.index("```json") + 7
@@ -504,19 +506,34 @@ Respond with ONLY a JSON array of strings (one per edit), nothing else:
             end = text.index("```", start)
             return text[start:end].strip()
 
-        # Try to find JSON array or object directly
-        for char, end_char in [("[", "]"), ("{", "}")]:
-            if char in text:
-                start = text.index(char)
-                # Find the matching closing bracket
-                depth = 0
-                for i in range(start, len(text)):
-                    if text[i] == char:
-                        depth += 1
-                    elif text[i] == end_char:
-                        depth -= 1
-                        if depth == 0:
-                            return text[start : i + 1]
+        # Find the earliest starting character
+        idx_open_brace = text.find("{")
+        idx_open_bracket = text.find("[")
+
+        if idx_open_brace == -1 and idx_open_bracket == -1:
+            return text
+
+        # Determine which comes first
+        if idx_open_brace != -1 and (idx_open_bracket == -1 or idx_open_brace < idx_open_bracket):
+            # It's an object
+            start = idx_open_brace
+            char = "{"
+            end_char = "}"
+        else:
+            # It's an array
+            start = idx_open_bracket
+            char = "["
+            end_char = "]"
+            
+        # Extract balanced block
+        depth = 0
+        for i in range(start, len(text)):
+            if text[i] == char:
+                depth += 1
+            elif text[i] == end_char:
+                depth -= 1
+                if depth == 0:
+                    return text[start : i + 1]
 
         return text.strip()
 
