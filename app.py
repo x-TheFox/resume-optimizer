@@ -215,5 +215,5 @@ def download(filename):
 
 if __name__ == "__main__":
     Config.validate()
-    logger.info("Starting Resume Optimizer on http://localhost:5000")
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    logger.info("Starting Resume Optimizer on http://localhost:5001")
+    app.run(debug=True, host="0.0.0.0", port=5001)

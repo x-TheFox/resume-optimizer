@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resume Optimizer — AI-Powered Deep Research & Auto-Edit</title>
+    <meta name="description"
+        content="Upload your resume, get AI-powered analysis with live web research, ATS scoring, and intelligent auto-optimization.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+
+<body>
+    <!-- ============ BACKGROUND PARTICLES ============ -->
+    <div class="bg-particles" id="bgParticles"></div>
+
+    <!-- ============ HEADER ============ -->
+    <header class="header">
+        <div class="header-inner">
+            <div class="logo">
+                <span class="logo-icon">◆</span>
+                <span class="logo-text">ResumeOptimizer</span>
+            </div>
+            <div class="header-badge">Powered by Llama-4 Maverick</div>
+        </div>
+    </header>
+
+    <!-- ============ MAIN ============ -->
+    <main class="main-container">
+        <!-- ---- UPLOAD SECTION ---- -->
+        <section class="section upload-section" id="uploadSection">
+            <div class="section-header">
+                <h1 class="section-title">Optimize Your Resume with AI</h1>
+                <p class="section-subtitle">
+                    Deep web research • Gap analysis • ATS scoring • Auto-optimization — all while preserving your
+                    formatting.
+                </p>
+            </div>
+
+            <form id="analyzeForm" class="upload-form" enctype="multipart/form-data">
+                <!-- File Drop Zone -->
+                <div class="drop-zone" id="dropZone">
+                    <div class="drop-zone-content">
+                        <div class="drop-icon">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                                <line x1="12" y1="18" x2="12" y2="12"></line>
+                                <line x1="9" y1="15" x2="12" y2="12"></line>
+                                <line x1="15" y1="15" x2="12" y2="12"></line>
+                            </svg>
+                        </div>
+                        <p class="drop-text">Drag & drop your <strong>.docx</strong> resume here</p>
+                        <p class="drop-subtext">or click to browse</p>
+                        <input type="file" id="resumeInput" name="resume" accept=".docx" hidden>
+                    </div>
+                    <div class="file-selected" id="fileSelected" style="display:none;">
+                        <span class="file-icon">📄</span>
+                        <span class="file-name" id="fileName"></span>
+                        <button type="button" class="file-remove" id="fileRemove">✕</button>
+                    </div>
+                </div>
+
+                <!-- Input Fields -->
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="jobTitle" class="form-label">Job Title <span class="required">*</span></label>
+                        <input type="text" id="jobTitle" name="job_title" class="form-input"
+                            placeholder="e.g. Senior Backend Engineer" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="companyName" class="form-label">Target Company <span
+                                class="optional">(optional)</span></label>
+                        <input type="text" id="companyName" name="company_name" class="form-input"
+                            placeholder="e.g. Google, Stripe, Notion">
+                    </div>
+                </div>
+
+                <div class="form-group full-width">
+                    <label for="jobDescription" class="form-label">Job Description <span
+                            class="required">*</span></label>
+                    <textarea id="jobDescription" name="job_description" class="form-textarea"
+                        placeholder="Paste the full job description here..." rows="6" required></textarea>
+                </div>
+
+                <!-- Auto-Apply Toggle -->
+                <div class="toggle-row">
+                    <div class="toggle-info">
+                        <span class="toggle-label">Auto-Apply Changes</span>
+                        <span class="toggle-desc">Automatically edit your resume with AI suggestions</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="autoApply" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <button type="submit" class="btn-primary" id="analyzeBtn">
+                    <span class="btn-text">Analyze & Optimize</span>
+                    <span class="btn-icon">→</span>
+                </button>
+            </form>
+        </section>
+
+        <!-- ---- LOADING SECTION ---- -->
+        <section class="section loading-section" id="loadingSection" style="display:none;">
+            <div class="loader-container">
+                <div class="loader-ring">
+                    <div class="loader-ring-inner"></div>
+                </div>
+                <h2 class="loader-title" id="loaderTitle">Analyzing Your Resume...</h2>
+                <div class="loader-steps">
+                    <div class="loader-step active" id="step1">
+                        <span class="step-dot"></span>
+                        <span class="step-text">Uploading document</span>
+                    </div>
+                    <div class="loader-step" id="step2">
+                        <span class="step-dot"></span>
+                        <span class="step-text">Researching job market & company</span>
+                    </div>
+                    <div class="loader-step" id="step3">
+                        <span class="step-dot"></span>
+                        <span class="step-text">Running AI gap analysis</span>
+                    </div>
+                    <div class="loader-step" id="step4">
+                        <span class="step-dot"></span>
+                        <span class="step-text">Scoring & generating suggestions</span>
+                    </div>
+                    <div class="loader-step" id="step5">
+                        <span class="step-dot"></span>
+                        <span class="step-text">Building optimized documents</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ---- RESULTS SECTION ---- -->
+        <section class="section results-section" id="resultsSection" style="display:none;">
+            <!-- Score Cards -->
+            <div class="results-header">
+                <h2 class="section-title">Analysis Results</h2>
+                <p class="section-subtitle" id="resultsSummary"></p>
+            </div>
+
+            <div class="scores-grid" id="scoresGrid">
+                <!-- ATS Score -->
+                <div class="score-card score-card-featured">
+                    <div class="score-ring" data-score="0" id="atsScoreRing">
+                        <svg viewBox="0 0 120 120">
+                            <circle class="score-ring-bg" cx="60" cy="60" r="52" />
+                            <circle class="score-ring-fill" cx="60" cy="60" r="52" stroke-dasharray="326.73"
+                                stroke-dashoffset="326.73" />
+                        </svg>
+                        <span class="score-value" id="atsScoreValue">0</span>
+                    </div>
+                    <span class="score-label">ATS Score</span>
+                </div>
+
+                <!-- Skills -->
+                <div class="score-card">
+                    <div class="score-ring" data-score="0" id="skillsScoreRing">
+                        <svg viewBox="0 0 120 120">
+                            <circle class="score-ring-bg" cx="60" cy="60" r="52" />
+                            <circle class="score-ring-fill" cx="60" cy="60" r="52" stroke-dasharray="326.73"
+                                stroke-dashoffset="326.73" />
+                        </svg>
+                        <span class="score-value" id="skillsScoreValue">0</span>
+                    </div>
+                    <span class="score-label">Skills</span>
+                </div>
+
+                <!-- Experience -->
+                <div class="score-card">
+                    <div class="score-ring" data-score="0" id="experienceScoreRing">
+                        <svg viewBox="0 0 120 120">
+                            <circle class="score-ring-bg" cx="60" cy="60" r="52" />
+                            <circle class="score-ring-fill" cx="60" cy="60" r="52" stroke-dasharray="326.73"
+                                stroke-dashoffset="326.73" />
+                        </svg>
+                        <span class="score-value" id="experienceScoreValue">0</span>
+                    </div>
+                    <span class="score-label">Experience</span>
+                </div>
+
+                <!-- Impact -->
+                <div class="score-card">
+                    <div class="score-ring" data-score="0" id="impactScoreRing">
+                        <svg viewBox="0 0 120 120">
+                            <circle class="score-ring-bg" cx="60" cy="60" r="52" />
+                            <circle class="score-ring-fill" cx="60" cy="60" r="52" stroke-dasharray="326.73"
+                                stroke-dashoffset="326.73" />
+                        </svg>
+                        <span class="score-value" id="impactScoreValue">0</span>
+                    </div>
+                    <span class="score-label">Impact</span>
+                </div>
+
+                <!-- Technical Match -->
+                <div class="score-card">
+                    <div class="score-ring" data-score="0" id="techMatchScoreRing">
+                        <svg viewBox="0 0 120 120">
+                            <circle class="score-ring-bg" cx="60" cy="60" r="52" />
+                            <circle class="score-ring-fill" cx="60" cy="60" r="52" stroke-dasharray="326.73"
+                                stroke-dashoffset="326.73" />
+                        </svg>
+                        <span class="score-value" id="techMatchScoreValue">0</span>
+                    </div>
+                    <span class="score-label">Technical Match</span>
+                </div>
+
+                <!-- Cultural Match -->
+                <div class="score-card">
+                    <div class="score-ring" data-score="0" id="culturalMatchScoreRing">
+                        <svg viewBox="0 0 120 120">
+                            <circle class="score-ring-bg" cx="60" cy="60" r="52" />
+                            <circle class="score-ring-fill" cx="60" cy="60" r="52" stroke-dasharray="326.73"
+                                stroke-dashoffset="326.73" />
+                        </svg>
+                        <span class="score-value" id="culturalMatchScoreValue">0</span>
+                    </div>
+                    <span class="score-label">Cultural Match</span>
+                </div>
+            </div>
+
+            <!-- ATS Warnings -->
+            <div class="results-panel" id="atsWarningsPanel" style="display:none;">
+                <h3 class="panel-title">
+                    <span class="panel-icon">⚠️</span> ATS Compatibility Warnings
+                </h3>
+                <ul class="warnings-list" id="atsWarningsList"></ul>
+            </div>
+
+            <!-- Gap Analysis -->
+            <div class="results-panel">
+                <h3 class="panel-title">
+                    <span class="panel-icon">🔍</span> Gap Analysis
+                </h3>
+                <div class="panel-content markdown-content" id="gapAnalysisContent"></div>
+            </div>
+
+            <!-- Suggestions -->
+            <div class="results-panel">
+                <h3 class="panel-title">
+                    <span class="panel-icon">✨</span> Optimization Suggestions
+                    <span class="badge" id="suggestionsCount"></span>
+                </h3>
+                <div class="suggestions-list" id="suggestionsList"></div>
+            </div>
+
+            <!-- Interview Questions -->
+            <div class="results-panel" id="interviewPanel" style="display:none;">
+                <h3 class="panel-title">
+                    <span class="panel-icon">🎤</span> Likely Interview Questions
+                </h3>
+                <ol class="interview-list" id="interviewList"></ol>
+            </div>
+
+            <!-- Cover Letter -->
+            <div class="results-panel" id="coverLetterPanel" style="display:none;">
+                <h3 class="panel-title">
+                    <span class="panel-icon">✉️</span> Generated Cover Letter
+                </h3>
+                <div class="panel-content cover-letter-content" id="coverLetterContent"></div>
+            </div>
+
+            <!-- Downloads -->
+            <div class="downloads-bar" id="downloadsBar" style="display:none;">
+                <h3 class="downloads-title">📥 Download Your Files</h3>
+                <div class="downloads-buttons" id="downloadsButtons"></div>
+            </div>
+
+            <!-- Start Over -->
+            <div class="restart-bar">
+                <button class="btn-secondary" id="restartBtn">← Analyze Another Resume</button>
+            </div>
+        </section>
+
+        <!-- ---- ERROR SECTION ---- -->
+        <section class="section error-section" id="errorSection" style="display:none;">
+            <div class="error-container">
+                <div class="error-icon">⚠️</div>
+                <h2 class="error-title">Something went wrong</h2>
+                <p class="error-message" id="errorMessage"></p>
+                <button class="btn-secondary" id="errorRetryBtn">← Try Again</button>
+            </div>
+        </section>
+    </main>
+
+    <!-- ============ FOOTER ============ -->
+    <footer class="footer">
+        <p>Built with Llama-4 Maverick • Privacy-first web research via DuckDuckGo • EdenCORP ©</p>
+    </footer>
+
+    <script src="/static/js/app.js"></script>
+</body>
+
+</html>
