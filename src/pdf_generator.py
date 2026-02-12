@@ -328,6 +328,10 @@ class PDFGenerator:
         )
 
         for i, s in enumerate(suggestions, 1):
+            # Defensive: skip non-dict items (e.g. if LLM returns bad format)
+            if not isinstance(s, dict):
+                logger.warning("Skipping non-dict suggestion item at index %d: %s", i, type(s))
+                continue
             section = s.get("section", "General")
             original = s.get("original_text", "")
             replacement = s.get("replacement_text", "")

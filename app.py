@@ -129,6 +129,7 @@ def analyze():
         analyzer = LLMAnalyzer(
             api_key=Config.GROQ_API_KEY,
             model=Config.GROQ_MODEL,
+            gateway_api_key=Config.AI_GATEWAY_API_KEY,
         )
         analysis = analyzer.analyze(
             resume_text=resume_text,

@@ -23,6 +23,9 @@ class Config:
     IS_VERCEL = bool(os.getenv("VERCEL", ""))
     BLOB_READ_WRITE_TOKEN = os.getenv("BLOB_READ_WRITE_TOKEN", "")
 
+    # Vercel AI Gateway (free $5/mo credit, auto-OIDC on Vercel)
+    AI_GATEWAY_API_KEY = os.getenv("AI_GATEWAY_API_KEY", "")
+
     # Research APIs (all optional — free tiers)
     BRAVE_API_KEY = os.getenv("BRAVE_API_KEY", "")
     FIRECRAWL_API_KEY = os.getenv("FIRECRAWL_API_KEY", "")

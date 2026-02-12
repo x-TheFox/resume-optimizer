@@ -1,5 +1,6 @@
 """
-LLMAnalyzer – Uses Groq's Llama-4-Maverick to perform deep resume analysis.
+LLMAnalyzer – Uses a round-robin LLM provider (Groq + Vercel AI Gateway)
+to perform deep resume analysis with automatic failover.
 
 Handles gap analysis, section scoring, ATS simulation, suggestion generation,
 interview prep, cover letter drafting, and talking points.
@@ -10,16 +11,20 @@ import time
 import logging
 from typing import Optional
 
-from groq import Groq
+from src.llm_provider import LLMProvider
 
 logger = logging.getLogger(__name__)
 
 
 class LLMAnalyzer:
-    """Orchestrates all LLM-powered analysis using the Groq API."""
+    """Orchestrates all LLM-powered analysis using round-robin LLM providers."""
 
-    def __init__(self, api_key: str, model: str):
-        self.client = Groq(api_key=api_key)
+    def __init__(self, api_key: str, model: str = "", gateway_api_key: str = ""):
+        self.provider = LLMProvider(
+            groq_api_key=api_key,
+            gateway_api_key=gateway_api_key,
+        )
+        # Legacy attributes kept for backward compat
         self.model = model
 
     def analyze(
@@ -615,31 +620,11 @@ Respond with ONLY a JSON array of strings (one per edit), nothing else:
     def _call_groq(
         self, system_prompt: str, user_prompt: str, max_retries: int = 3
     ) -> str:
-        """Call the Groq API with retry and rate-limit handling."""
-        for attempt in range(max_retries):
-            try:
-                response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                    temperature=0.4,
-                    max_tokens=8000,
-                )
-                content = response.choices[0].message.content
-                return content if content else ""
-            except Exception as e:
-                logger.warning(
-                    "Groq API attempt %d failed: %s", attempt + 1, str(e)
-                )
-                if "rate_limit" in str(e).lower() or "429" in str(e):
-                    wait_time = 10 * (attempt + 1)
-                    logger.info("Rate limited. Waiting %ds...", wait_time)
-                    time.sleep(wait_time)
-                elif attempt < max_retries - 1:
-                    time.sleep(2 ** (attempt + 1))
-                else:
-                    logger.error("All Groq API retries failed: %s", e)
-                    return ""
-        return ""
+        """Call the LLM via round-robin provider with automatic failover."""
+        return self.provider.chat(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            temperature=0.4,
+            max_tokens=8000,
+            max_retries=max_retries * self.provider.endpoint_count,
+        )
