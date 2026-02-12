@@ -300,11 +300,12 @@ class FirecrawlTool:
 
             urls = []
             if hasattr(result, "links"):
-                urls = (result.links or [])[:limit]
+                raw = (result.links or [])[:limit]
+                urls = [str(getattr(u, "url", u)) for u in raw]
             elif isinstance(result, list):
-                urls = result[:limit]
+                urls = [str(getattr(u, "url", u)) for u in result[:limit]]
             elif isinstance(result, dict):
-                urls = result.get("links", result.get("urls", []))[:limit]
+                urls = [str(u) for u in result.get("links", result.get("urls", []))[:limit]]
 
             return "\n".join(urls) if urls else ""
 
