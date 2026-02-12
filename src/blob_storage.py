@@ -133,29 +133,45 @@ class BlobStorage:
 
     def _upload_to_blob(self, file_bytes: bytes, filename: str, content_type: str) -> str:
         """Upload file to Vercel Blob and return the public URL."""
-        try:
-            headers = {
-                "Authorization": f"Bearer {self.token}",
-                "Content-Type": content_type,
-                "x-api-version": "7",
-            }
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                headers = {
+                    "Authorization": f"Bearer {self.token}",
+                    "Content-Type": content_type,
+                    "x-api-version": "7",
+                }
 
-            # Use the put API
-            response = requests.put(
-                f"{BLOB_API_URL}/{filename}",
-                headers=headers,
-                data=file_bytes,
-                timeout=30,
-            )
-            response.raise_for_status()
-            result = response.json()
-            url = result.get("url", "")
-            logger.info("Uploaded to Blob: %s -> %s", filename, url)
-            return url
+                # Use the put API
+                response = requests.put(
+                    f"{BLOB_API_URL}/{filename}",
+                    headers=headers,
+                    data=file_bytes,
+                    timeout=30,
+                )
+                response.raise_for_status()
+                result = response.json()
+                url = result.get("url", "")
+                logger.info("Uploaded to Blob: %s -> %s", filename, url)
+                return url
 
-        except Exception as e:
-            logger.error("Blob upload failed: %s", e)
-            raise RuntimeError(f"Failed to upload file to storage: {e}")
+            except requests.exceptions.HTTPError as e:
+                status = getattr(e.response, "status_code", 0)
+                if status in (502, 503, 504, 429) and attempt < max_retries - 1:
+                    wait = 2 ** (attempt + 1)  # 2s, 4s
+                    logger.warning("Blob upload %d/%d got %s, retrying in %ds...", attempt + 1, max_retries, status, wait)
+                    import time; time.sleep(wait)
+                    continue
+                logger.error("Blob upload failed: %s", e)
+                raise RuntimeError(f"Failed to upload file to storage: {e}")
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    wait = 2 ** (attempt + 1)
+                    logger.warning("Blob upload %d/%d failed (%s), retrying in %ds...", attempt + 1, max_retries, e, wait)
+                    import time; time.sleep(wait)
+                    continue
+                logger.error("Blob upload failed: %s", e)
+                raise RuntimeError(f"Failed to upload file to storage: {e}")
 
     def _cleanup_blob(self, max_age_hours: int) -> dict:
         """List and delete old blobs."""
