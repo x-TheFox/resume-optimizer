@@ -265,6 +265,24 @@ def cleanup():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/llm-status", methods=["GET"])
+def llm_status():
+    """Return status of all LLM endpoints (for debugging round-robin)."""
+    try:
+        from src.llm_provider import LLMProvider
+
+        provider = LLMProvider(
+            groq_api_key=Config.GROQ_API_KEY,
+            gateway_api_key=Config.AI_GATEWAY_API_KEY,
+        )
+        return jsonify({
+            "endpoint_count": provider.endpoint_count,
+            "endpoints": provider.get_status(),
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # ------------------------------------------------------------------ #
 #  Main
 # ------------------------------------------------------------------ #
