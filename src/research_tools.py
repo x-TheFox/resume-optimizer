@@ -194,7 +194,7 @@ class FirecrawlTool:
         self.available = bool(self.api_key)
         self._credits_used = 0
 
-    def scrape(self, url: str) -> str:
+    def scrape(self, url: str = "", **kwargs) -> str:
         """
         Scrape a single URL and extract clean content.
 
@@ -204,7 +204,9 @@ class FirecrawlTool:
         Returns:
             Markdown content of the page
         """
-        if not self.available:
+        # Handle LLM parameter aliasing
+        url = url or kwargs.get("website", "") or kwargs.get("page_url", "") or kwargs.get("link", "")
+        if not self.available or not url:
             return ""
 
         try:
@@ -226,7 +228,7 @@ class FirecrawlTool:
             logger.warning("Firecrawl scrape failed for %s: %s", url, e)
             return self._http_scrape(url)
 
-    def search(self, query: str, limit: int = 5) -> str:
+    def search(self, query: str = "", limit: int = 5, **kwargs) -> str:
         """
         Search the web and scrape results using Firecrawl.
 
@@ -237,7 +239,9 @@ class FirecrawlTool:
         Returns:
             Formatted search results with scraped content
         """
-        if not self.available:
+        # Handle LLM parameter aliasing
+        query = query or kwargs.get("search_query", "") or kwargs.get("q", "")
+        if not self.available or not query:
             return ""
 
         try:
@@ -278,7 +282,7 @@ class FirecrawlTool:
             logger.warning("Firecrawl search failed: %s", e)
             return ""
 
-    def map_site(self, url: str, limit: int = 20) -> str:
+    def map_site(self, url: str = "", limit: int = 20, **kwargs) -> str:
         """
         Discover URLs on a website.
 
@@ -289,7 +293,9 @@ class FirecrawlTool:
         Returns:
             Newline-separated list of discovered URLs
         """
-        if not self.available:
+        # Handle LLM parameter aliasing (website, site, base_url, etc.)
+        url = url or kwargs.get("website", "") or kwargs.get("site", "") or kwargs.get("base_url", "")
+        if not self.available or not url:
             return ""
 
         try:
