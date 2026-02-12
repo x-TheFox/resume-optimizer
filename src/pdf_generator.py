@@ -1,8 +1,12 @@
 """
 PDFGenerator – Creates professionally styled PDFs for interview prep
 and cover letters using ReportLab.
+
+Supports both file-path output and in-memory BytesIO output for
+serverless environments like Vercel.
 """
 
+import io
 import logging
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -87,18 +91,23 @@ class PDFGenerator:
         ))
 
     def generate_interview_prep(
-        self, questions: list, job_title: str, output_path: str
-    ):
+        self, questions: list, job_title: str, output_path: str = None
+    ) -> io.BytesIO:
         """
         Generate a 1-page Interview Prep PDF with likely questions.
 
         Args:
             questions: List of interview question strings
             job_title: Target job title for the header
-            output_path: Path to save the PDF
+            output_path: Path to save the PDF (None = return BytesIO)
+
+        Returns:
+            BytesIO buffer containing the PDF
         """
+        buffer = io.BytesIO()
+        target = output_path if output_path else buffer
         doc = SimpleDocTemplate(
-            output_path,
+            target,
             pagesize=letter,
             topMargin=0.6 * inch,
             bottomMargin=0.6 * inch,
@@ -174,11 +183,14 @@ class PDFGenerator:
         ))
 
         doc.build(elements)
-        logger.info("Interview prep PDF saved to: %s", output_path)
+        if output_path:
+            logger.info("Interview prep PDF saved to: %s", output_path)
+        buffer.seek(0)
+        return buffer
 
     def generate_cover_letter(
-        self, cover_letter_text: str, job_title: str, company_name: str, output_path: str
-    ):
+        self, cover_letter_text: str, job_title: str, company_name: str, output_path: str = None
+    ) -> io.BytesIO:
         """
         Generate a professionally formatted cover letter PDF.
 
@@ -186,10 +198,15 @@ class PDFGenerator:
             cover_letter_text: The cover letter content
             job_title: Target job title
             company_name: Target company name
-            output_path: Path to save the PDF
+            output_path: Path to save the PDF (None = return BytesIO)
+
+        Returns:
+            BytesIO buffer containing the PDF
         """
+        buffer = io.BytesIO()
+        target = output_path if output_path else buffer
         doc = SimpleDocTemplate(
-            output_path,
+            target,
             pagesize=letter,
             topMargin=1 * inch,
             bottomMargin=1 * inch,
@@ -224,11 +241,14 @@ class PDFGenerator:
                 ))
 
         doc.build(elements)
-        logger.info("Cover letter PDF saved to: %s", output_path)
+        if output_path:
+            logger.info("Cover letter PDF saved to: %s", output_path)
+        buffer.seek(0)
+        return buffer
 
     def generate_talking_points_pdf(
-        self, suggestions: list, job_title: str, output_path: str
-    ):
+        self, suggestions: list, job_title: str, output_path: str = None
+    ) -> io.BytesIO:
         """
         Generate a Talking Points PDF that documents every resume edit
         so the candidate can explain changes in interviews.
@@ -237,10 +257,15 @@ class PDFGenerator:
             suggestions: List of suggestion dicts with original_text,
                          replacement_text, reason, talking_point, section
             job_title: Target job title for the header
-            output_path: Path to save the PDF
+            output_path: Path to save the PDF (None = return BytesIO)
+
+        Returns:
+            BytesIO buffer containing the PDF
         """
+        buffer = io.BytesIO()
+        target = output_path if output_path else buffer
         doc = SimpleDocTemplate(
-            output_path,
+            target,
             pagesize=letter,
             topMargin=0.6 * inch,
             bottomMargin=0.6 * inch,
@@ -361,7 +386,10 @@ class PDFGenerator:
         ))
 
         doc.build(elements)
-        logger.info("Talking points PDF saved to: %s", output_path)
+        if output_path:
+            logger.info("Talking points PDF saved to: %s", output_path)
+        buffer.seek(0)
+        return buffer
 
     def _escape(self, text: str) -> str:
         """Escape special XML characters for ReportLab paragraphs."""

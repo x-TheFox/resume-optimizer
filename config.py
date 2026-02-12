@@ -19,7 +19,15 @@ class Config:
     SECRET_KEY = os.getenv("SECRET_KEY", "resume-optimizer-dev-key")
     MAX_CONTENT_LENGTH = int(os.getenv("MAX_CONTENT_LENGTH", 16 * 1024 * 1024))  # 16MB
 
-    # Paths
+    # Vercel / Storage
+    IS_VERCEL = bool(os.getenv("VERCEL", ""))
+    BLOB_READ_WRITE_TOKEN = os.getenv("BLOB_READ_WRITE_TOKEN", "")
+
+    # Research APIs (all optional — free tiers)
+    BRAVE_API_KEY = os.getenv("BRAVE_API_KEY", "")
+    FIRECRAWL_API_KEY = os.getenv("FIRECRAWL_API_KEY", "")
+
+    # Paths (used in local/dev mode only)
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
     OUTPUT_FOLDER = os.path.join(BASE_DIR, "outputs")
@@ -31,5 +39,7 @@ class Config:
             raise ValueError(
                 "GROQ_API_KEY is required. Set it in your .env file."
             )
-        os.makedirs(cls.UPLOAD_FOLDER, exist_ok=True)
-        os.makedirs(cls.OUTPUT_FOLDER, exist_ok=True)
+        # Only create local dirs when NOT on Vercel (read-only filesystem)
+        if not cls.IS_VERCEL:
+            os.makedirs(cls.UPLOAD_FOLDER, exist_ok=True)
+            os.makedirs(cls.OUTPUT_FOLDER, exist_ok=True)

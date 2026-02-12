@@ -2,9 +2,18 @@
 ResearchEngine – Performs live web research to build a "Success Profile"
 for a given job title, description, and optionally a target company.
 
-Uses DuckDuckGo Search for privacy-friendly, no-API-key web research.
+Uses a layered approach:
+1. Deep Research (Firecrawl + Brave Search + tool calling) — if APIs configured
+2. DuckDuckGo Search — always available as fallback (no API key needed)
+
+The deep research layer provides:
+- Company website scraping for real values/culture
+- Industry trend analysis from multiple sources
+- LinkedIn-style profile data for shadow requirements
+- Tool-calling orchestration for multi-step research
 """
 
+import os
 import time
 import logging
 from typing import Optional
@@ -20,6 +29,17 @@ class ResearchEngine:
     def __init__(self):
         self.ddgs = DDGS()
         self._delay = 1.5  # seconds between searches to avoid rate limits
+        self._deep_research_available = self._check_deep_research()
+
+    def _check_deep_research(self) -> bool:
+        """Check if any deep research APIs are configured."""
+        has_brave = bool(os.getenv("BRAVE_API_KEY", ""))
+        has_firecrawl = bool(os.getenv("FIRECRAWL_API_KEY", ""))
+        if has_brave or has_firecrawl:
+            logger.info("Deep research APIs available: Brave=%s, Firecrawl=%s", has_brave, has_firecrawl)
+            return True
+        logger.info("No deep research APIs configured, using DuckDuckGo only")
+        return False
 
     def research(
         self,
@@ -29,6 +49,9 @@ class ResearchEngine:
     ) -> dict:
         """
         Run all research searches and return a SuccessProfile dict.
+
+        Uses deep research tools (Firecrawl, Brave, LinkedIn) if available,
+        falls back to DuckDuckGo for everything.
 
         Args:
             job_title: The target job title (e.g. "Senior Backend Engineer")
@@ -41,18 +64,20 @@ class ResearchEngine:
         logger.info("Starting research for: %s", job_title)
         results = {}
 
-        # --- Role & Industry Research ---
+        # --- Deep Research Layer (if APIs configured) ---
+        deep_findings = {}
+        if self._deep_research_available:
+            deep_findings = self._run_deep_research(job_title, job_description, company_name)
+
+        # --- DuckDuckGo Layer (always runs as base/fallback) ---
         results["role_responsibilities"] = self._search_role_responsibilities(job_title)
         results["tech_trends"] = self._search_tech_trends(job_title)
 
-        # --- Company-Specific Research (if provided) ---
         if company_name:
             results["company_values"] = self._search_company_values(company_name)
             results["recent_news"] = self._search_company_news(company_name)
             results["competitors"] = self._search_competitors(company_name)
-            results["shadow_skills"] = self._search_employee_skills(
-                job_title, company_name
-            )
+            results["shadow_skills"] = self._search_employee_skills(job_title, company_name)
         else:
             results["company_values"] = ""
             results["recent_news"] = ""
@@ -62,10 +87,87 @@ class ResearchEngine:
         # --- Cultural Tone Analysis ---
         results["cultural_tone"] = self._analyze_cultural_tone(job_description)
 
+        # --- Merge Deep Research into results ---
+        if deep_findings:
+            # Enhance results with deep research data
+            if deep_findings.get("company_insights"):
+                results["company_values"] = (
+                    results["company_values"] + "\n\n=== Deep Research Findings ===\n" +
+                    deep_findings["company_insights"]
+                )
+            if deep_findings.get("required_skills"):
+                skills_text = ", ".join(deep_findings["required_skills"])
+                results["shadow_skills"] = (
+                    results["shadow_skills"] + "\n\n=== Key Skills Identified ===\n" + skills_text
+                )
+            if deep_findings.get("industry_trends"):
+                results["tech_trends"] = (
+                    results["tech_trends"] + "\n\n=== Deep Research Trends ===\n" +
+                    deep_findings["industry_trends"]
+                )
+            if deep_findings.get("competitive_landscape"):
+                results["competitors"] = (
+                    results["competitors"] + "\n\n=== Market Intelligence ===\n" +
+                    deep_findings["competitive_landscape"]
+                )
+
         # Build final profile
         profile = self._build_success_profile(results, job_title, company_name)
+
+        # Add deep research extras to profile
+        if deep_findings:
+            profile["deep_research"] = deep_findings
+            profile["key_technologies"] = deep_findings.get("key_technologies", [])
+            profile["insider_tips"] = deep_findings.get("insider_tips", "")
+            # Override cultural tone if deep research has stronger signal
+            if deep_findings.get("cultural_tone") in ("formal", "casual", "balanced"):
+                tone_map = {
+                    "formal": "fortune_500_corporate",
+                    "casual": "silicon_valley_casual",
+                    "balanced": "balanced",
+                }
+                profile["cultural_tone"] = tone_map.get(
+                    deep_findings["cultural_tone"],
+                    profile["cultural_tone"]
+                )
+
         logger.info("Research complete. Profile keys: %s", list(profile.keys()))
         return profile
+
+    def _run_deep_research(
+        self,
+        job_title: str,
+        job_description: str,
+        company_name: Optional[str],
+    ) -> dict:
+        """
+        Run deep research using the orchestrator with tool calling.
+
+        Returns:
+            Dict with deep research findings, or empty dict on failure
+        """
+        try:
+            from config import Config
+            from src.research_orchestrator import ResearchOrchestrator
+
+            if not Config.GROQ_API_KEY:
+                return {}
+
+            orchestrator = ResearchOrchestrator(
+                api_key=Config.GROQ_API_KEY,
+                model=Config.GROQ_MODEL,
+            )
+            findings = orchestrator.deep_research(
+                job_title=job_title,
+                job_description=job_description,
+                company_name=company_name,
+            )
+            logger.info("Deep research completed: %d findings", len(findings))
+            return findings
+
+        except Exception as e:
+            logger.warning("Deep research failed (falling back to DuckDuckGo): %s", e)
+            return {}
 
     # ------------------------------------------------------------------ #
     #  Search Methods

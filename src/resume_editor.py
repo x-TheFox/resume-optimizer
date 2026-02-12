@@ -7,6 +7,7 @@ run-level formatting intact.
 """
 
 import copy
+import io
 import logging
 import re
 from typing import Optional
@@ -22,16 +23,25 @@ logger = logging.getLogger(__name__)
 class ResumeEditor:
     """Read, analyze, and edit .docx files with formatting preservation."""
 
-    def __init__(self, docx_path: str):
+    def __init__(self, docx_path_or_bytes=None):
         """
         Load a .docx file for editing.
 
         Args:
-            docx_path: Path to the .docx file
+            docx_path_or_bytes: Path to .docx file, or bytes/BytesIO of .docx content
         """
-        self.docx_path = docx_path
-        self.document = Document(docx_path)
-        logger.info("Loaded document: %s", docx_path)
+        if isinstance(docx_path_or_bytes, (bytes, bytearray)):
+            self.docx_path = None
+            self.document = Document(io.BytesIO(docx_path_or_bytes))
+            logger.info("Loaded document from bytes (%d bytes)", len(docx_path_or_bytes))
+        elif isinstance(docx_path_or_bytes, io.BytesIO):
+            self.docx_path = None
+            self.document = Document(docx_path_or_bytes)
+            logger.info("Loaded document from BytesIO")
+        else:
+            self.docx_path = docx_path_or_bytes
+            self.document = Document(docx_path_or_bytes)
+            logger.info("Loaded document: %s", docx_path_or_bytes)
 
     def extract_text(self) -> str:
         """
@@ -243,3 +253,16 @@ class ResumeEditor:
         """
         self.document.save(output_path)
         logger.info("Saved optimized document to: %s", output_path)
+
+    def save_to_bytesio(self) -> io.BytesIO:
+        """
+        Save the modified document to an in-memory BytesIO buffer.
+
+        Returns:
+            BytesIO buffer containing the .docx file
+        """
+        buffer = io.BytesIO()
+        self.document.save(buffer)
+        buffer.seek(0)
+        logger.info("Saved optimized document to BytesIO")
+        return buffer

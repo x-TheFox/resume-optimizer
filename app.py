@@ -3,17 +3,21 @@ Resume Optimizer – Flask Application
 
 Main entry point for the web application. Handles file uploads,
 orchestrates the analysis pipeline, and serves results.
+
+Works on both local development (filesystem) and Vercel (Blob storage).
 """
 
 import os
+import io
 import uuid
 import logging
 import traceback
+import urllib.parse
 
-from flask import Flask, request, jsonify, send_file, render_template
-from werkzeug.utils import secure_filename
+from flask import Flask, request, jsonify, send_file, render_template, redirect
 
 from config import Config
+from src.blob_storage import BlobStorage
 from src.research_engine import ResearchEngine
 from src.llm_analyzer import LLMAnalyzer
 from src.resume_editor import ResumeEditor
@@ -32,6 +36,9 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = Config.MAX_CONTENT_LENGTH
 app.config["SECRET_KEY"] = Config.SECRET_KEY
+
+# Initialize blob storage (auto-detects Vercel vs local)
+blob_storage = BlobStorage()
 
 ALLOWED_EXTENSIONS = {"docx"}
 
@@ -55,13 +62,14 @@ def index():
 def analyze():
     """
     Full analysis pipeline:
-    1. Save uploaded .docx
+    1. Read uploaded .docx (in-memory or disk depending on env)
     2. Extract text
     3. Run web research
     4. Run LLM analysis
     5. Optionally apply suggestions
-    6. Generate PDFs
-    7. Return results JSON
+    6. Generate PDFs (in-memory)
+    7. Upload all outputs to Blob / save locally
+    8. Return results JSON with download URLs
     """
     try:
         # --- Validate inputs ---
@@ -88,18 +96,19 @@ def analyze():
                 "error": "GROQ_API_KEY not configured. Add it to your .env file."
             }), 500
 
-        # Ensure directories exist
+        # Ensure directories exist (no-op on Vercel)
         Config.validate()
 
-        # --- Save uploaded file ---
+        # --- Read uploaded file into memory ---
         session_id = str(uuid.uuid4())[:8]
-        original_name = secure_filename(file.filename)
-        upload_path = os.path.join(Config.UPLOAD_FOLDER, f"{session_id}_{original_name}")
-        file.save(upload_path)
-        logger.info("File saved: %s", upload_path)
+        original_name = file.filename.replace(" ", "_")
+        # Keep only safe chars
+        original_name = "".join(c for c in original_name if c.isalnum() or c in "._-")
+        file_bytes = file.read()
+        logger.info("Read uploaded file: %s (%d bytes)", original_name, len(file_bytes))
 
-        # --- Step 1: Extract resume text ---
-        editor = ResumeEditor(upload_path)
+        # --- Step 1: Extract resume text (from bytes, no disk needed) ---
+        editor = ResumeEditor(file_bytes)
         resume_text = editor.extract_text()
         logger.info("Extracted %d characters from resume", len(resume_text))
 
@@ -129,51 +138,56 @@ def analyze():
         )
 
         # --- Step 4: Apply suggestions (if auto-apply) ---
-        optimized_filename = None
+        optimized_resume_url = None
         edit_results = None
         if auto_apply and analysis.get("suggestions"):
             edit_results = editor.apply_suggestions(analysis["suggestions"])
 
-            # Save optimized resume — NO talking points appended
+            # Save optimized resume to BytesIO, then upload
+            optimized_buffer = editor.save_to_bytesio()
             optimized_filename = f"{session_id}_optimized_{original_name}"
-            optimized_path = os.path.join(Config.OUTPUT_FOLDER, optimized_filename)
-            editor.save(optimized_path)
-            logger.info("Optimized resume saved: %s", optimized_path)
+            optimized_resume_url = blob_storage.save_docx(optimized_buffer, optimized_filename)
+            logger.info("Optimized resume stored: %s", optimized_resume_url)
 
-        # --- Step 5: Generate PDFs ---
-        interview_pdf_filename = None
-        cover_letter_pdf_filename = None
-        talking_points_pdf_filename = None
+        # --- Step 5: Generate PDFs (all in-memory) ---
+        interview_prep_url = None
+        cover_letter_url = None
+        talking_points_url = None
         pdf_gen = PDFGenerator()
 
         if analysis.get("interview_questions"):
-            interview_pdf_filename = f"{session_id}_interview_prep.pdf"
-            interview_path = os.path.join(Config.OUTPUT_FOLDER, interview_pdf_filename)
-            pdf_gen.generate_interview_prep(
+            interview_buffer = pdf_gen.generate_interview_prep(
                 questions=analysis["interview_questions"],
                 job_title=job_title,
-                output_path=interview_path,
             )
+            interview_filename = f"{session_id}_interview_prep.pdf"
+            interview_prep_url = blob_storage.save_pdf(interview_buffer, interview_filename)
 
         if analysis.get("cover_letter"):
-            cover_letter_pdf_filename = f"{session_id}_cover_letter.pdf"
-            cover_letter_path = os.path.join(Config.OUTPUT_FOLDER, cover_letter_pdf_filename)
-            pdf_gen.generate_cover_letter(
+            cover_letter_buffer = pdf_gen.generate_cover_letter(
                 cover_letter_text=analysis["cover_letter"],
                 job_title=job_title,
                 company_name=company_name or "Target Company",
-                output_path=cover_letter_path,
             )
+            cover_letter_filename = f"{session_id}_cover_letter.pdf"
+            cover_letter_url = blob_storage.save_pdf(cover_letter_buffer, cover_letter_filename)
 
-        # Generate talking points as a SEPARATE PDF (not in the resume)
+        # Generate talking points as a SEPARATE PDF
         if analysis.get("suggestions"):
-            talking_points_pdf_filename = f"{session_id}_talking_points.pdf"
-            tp_path = os.path.join(Config.OUTPUT_FOLDER, talking_points_pdf_filename)
-            pdf_gen.generate_talking_points_pdf(
+            tp_buffer = pdf_gen.generate_talking_points_pdf(
                 suggestions=analysis["suggestions"],
                 job_title=job_title,
-                output_path=tp_path,
             )
+            tp_filename = f"{session_id}_talking_points.pdf"
+            talking_points_url = blob_storage.save_pdf(tp_buffer, tp_filename)
+
+        # --- Build download URLs ---
+        downloads = {
+            "optimized_resume": blob_storage.get_download_url(optimized_resume_url) if optimized_resume_url else None,
+            "interview_prep": blob_storage.get_download_url(interview_prep_url) if interview_prep_url else None,
+            "cover_letter": blob_storage.get_download_url(cover_letter_url) if cover_letter_url else None,
+            "talking_points": blob_storage.get_download_url(talking_points_url) if talking_points_url else None,
+        }
 
         # --- Build response ---
         response = {
@@ -188,12 +202,7 @@ def analyze():
             "overall_summary": analysis.get("overall_summary", ""),
             "auto_applied": auto_apply,
             "edit_results": edit_results,
-            "downloads": {
-                "optimized_resume": f"/download/{optimized_filename}" if optimized_filename else None,
-                "interview_prep": f"/download/{interview_pdf_filename}" if interview_pdf_filename else None,
-                "cover_letter": f"/download/{cover_letter_pdf_filename}" if cover_letter_pdf_filename else None,
-                "talking_points": f"/download/{talking_points_pdf_filename}" if talking_points_pdf_filename else None,
-            },
+            "downloads": downloads,
             "research_summary": {
                 "company": company_name or "Not specified",
                 "cultural_tone": success_profile.get("cultural_tone", "balanced"),
@@ -209,7 +218,8 @@ def analyze():
 
 @app.route("/download/<filename>")
 def download(filename):
-    """Serve generated output files for download."""
+    """Serve generated output files for download (local dev only)."""
+    from werkzeug.utils import secure_filename
     safe_name = secure_filename(filename)
     file_path = os.path.join(Config.OUTPUT_FOLDER, safe_name)
 
@@ -217,6 +227,41 @@ def download(filename):
         return jsonify({"error": "File not found"}), 404
 
     return send_file(file_path, as_attachment=True, download_name=safe_name)
+
+
+@app.route("/whatsapp-share", methods=["POST"])
+def whatsapp_share():
+    """
+    Generate a WhatsApp share URL for a file.
+
+    Accepts JSON: { "file_url": "...", "filename": "..." }
+    Returns: { "whatsapp_url": "https://wa.me/?text=..." }
+    """
+    try:
+        data = request.get_json()
+        file_url = data.get("file_url", "")
+        filename = data.get("filename", "My Optimized Resume")
+
+        if not file_url:
+            return jsonify({"error": "file_url is required"}), 400
+
+        message = f"Check out my optimized resume: {filename}\n{file_url}"
+        encoded_message = urllib.parse.quote(message)
+        whatsapp_url = f"https://wa.me/?text={encoded_message}"
+
+        return jsonify({"whatsapp_url": whatsapp_url})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/cleanup", methods=["POST"])
+def cleanup():
+    """Cleanup old files (called by cron or manually)."""
+    try:
+        result = blob_storage.cleanup_old_files(max_age_hours=24)
+        return jsonify({"success": True, **result})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ------------------------------------------------------------------ #
