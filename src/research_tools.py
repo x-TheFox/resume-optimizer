@@ -210,10 +210,12 @@ class FirecrawlTool:
         try:
             from firecrawl import FirecrawlApp
             app = FirecrawlApp(api_key=self.api_key)
-            result = app.scrape_url(url, params={"formats": ["markdown"]})
+            result = app.scrape(url, formats=["markdown"])
             self._credits_used += 1
             content = ""
-            if isinstance(result, dict):
+            if hasattr(result, "markdown"):
+                content = result.markdown or ""
+            elif isinstance(result, dict):
                 content = result.get("markdown", "") or result.get("content", "")
             return content[:5000]  # Limit output size
 
@@ -241,22 +243,32 @@ class FirecrawlTool:
         try:
             from firecrawl import FirecrawlApp
             app = FirecrawlApp(api_key=self.api_key)
-            results = app.search(query, params={"limit": min(limit, 5)})
+            results = app.search(query, limit=min(limit, 5))
             self._credits_used += 2  # 2 credits per 10 results
 
             output = []
-            if isinstance(results, list):
-                for r in results:
-                    title = r.get("title", "")
-                    url = r.get("url", "")
-                    content = r.get("markdown", r.get("content", ""))[:500]
-                    output.append(f"- {title}\n  URL: {url}\n  Content: {content}")
+            # v4 SDK returns SearchData with .web list of SearchResultWeb objects
+            items = []
+            if hasattr(results, "web") and results.web:
+                items = results.web
+            elif hasattr(results, "data"):
+                items = results.data or []
+            elif isinstance(results, list):
+                items = results
             elif isinstance(results, dict):
-                for r in results.get("data", []):
+                items = results.get("data", [])
+
+            for r in items:
+                if hasattr(r, "title"):
+                    title = r.title or ""
+                    url = r.url or ""
+                    desc = getattr(r, "description", "") or ""
+                    content = (getattr(r, "markdown", "") or desc)[:500]
+                else:
                     title = r.get("title", "")
                     url = r.get("url", "")
                     content = r.get("markdown", r.get("content", ""))[:500]
-                    output.append(f"- {title}\n  URL: {url}\n  Content: {content}")
+                output.append(f"- {title}\n  URL: {url}\n  Content: {content}")
 
             return "\n\n".join(output) if output else ""
 
@@ -283,11 +295,13 @@ class FirecrawlTool:
         try:
             from firecrawl import FirecrawlApp
             app = FirecrawlApp(api_key=self.api_key)
-            result = app.map_url(url, params={"limit": min(limit, 50)})
+            result = app.map(url, limit=min(limit, 50))
             self._credits_used += 1
 
             urls = []
-            if isinstance(result, list):
+            if hasattr(result, "links"):
+                urls = (result.links or [])[:limit]
+            elif isinstance(result, list):
                 urls = result[:limit]
             elif isinstance(result, dict):
                 urls = result.get("links", result.get("urls", []))[:limit]
