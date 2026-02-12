@@ -16,7 +16,7 @@ import time
 import logging
 from typing import Optional
 
-from groq import Groq
+from src.llm_provider import LLMProvider
 
 from src.research_tools import ToolRegistry, create_tool_registry
 
@@ -30,9 +30,11 @@ class ResearchOrchestrator:
     Uses LLM to plan research, execute tools, and synthesize findings.
     """
 
-    def __init__(self, api_key: str, model: str):
-        self.client = Groq(api_key=api_key)
-        self.model = model
+    def __init__(self, api_key: str, model: str, gateway_api_key: str = ""):
+        self.provider = LLMProvider(
+            groq_api_key=api_key,
+            gateway_api_key=gateway_api_key,
+        )
         self.registry = create_tool_registry()
         self.memory: list[dict] = []  # Accumulated research findings
         self.max_tool_calls = 8  # Budget: max tools to call per research session
@@ -155,16 +157,12 @@ Rules:
 - Maximum 6 steps"""
 
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
+            content = self.provider.chat(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
                 temperature=0.3,
                 max_tokens=2000,
             )
-            content = response.choices[0].message.content or ""
             plan = json.loads(self._extract_json(content))
 
             if isinstance(plan, list):
@@ -265,16 +263,12 @@ Extract and return ONLY this JSON:
 }}"""
 
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
+            content = self.provider.chat(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
                 temperature=0.3,
                 max_tokens=2000,
             )
-            content = response.choices[0].message.content or ""
             result = json.loads(self._extract_json(content))
             if isinstance(result, dict):
                 logger.info("Research synthesis complete: %s", list(result.keys()))

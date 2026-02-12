@@ -156,6 +156,7 @@ class ResearchEngine:
             orchestrator = ResearchOrchestrator(
                 api_key=Config.GROQ_API_KEY,
                 model=Config.GROQ_MODEL,
+                gateway_api_key=Config.AI_GATEWAY_API_KEY,
             )
             findings = orchestrator.deep_research(
                 job_title=job_title,
