@@ -12,7 +12,8 @@ import io
 import uuid
 import logging
 import traceback
-import urllib.parseimport requests
+import urllib.parse
+import requests
 from flask import Flask, request, jsonify, send_file, render_template, redirect, Response
 
 from config import Config

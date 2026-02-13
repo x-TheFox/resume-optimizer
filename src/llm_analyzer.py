@@ -113,14 +113,18 @@ class LLMAnalyzer:
             "You are an expert career strategist and resume analyst. "
             "Analyze the gap between a candidate's resume and the target role's requirements. "
             "Be specific about what's missing, what's strong, and what needs improvement. "
-            "Reference specific parts of the resume and specific requirements."
+            "Reference specific parts of the resume and specific requirements. "
+            "IMPORTANT: Base your analysis PRIMARILY on the Job Description provided. "
+            "The Success Profile is supplementary context only — do NOT treat researched "
+            "information as hard requirements if it is not mentioned in the actual JD. "
+            "If the JD is short or vague, keep your analysis proportionally brief."
         )
         user_prompt = f"""## Target Role: {job_title}
 
-## Job Description:
+## Job Description (PRIMARY source of truth):
 {job_description}
 
-## Research-Based Success Profile:
+## Research-Based Success Profile (supplementary context only):
 {profile_text}
 
 ## Candidate's Resume:
@@ -130,11 +134,15 @@ class LLMAnalyzer:
 
 Provide a detailed gap analysis covering:
 1. **Strengths** — What aligns well with the target role
-2. **Gaps** — Skills, experience, or keywords that are missing
+2. **Gaps** — Skills, experience, or keywords that are EXPLICITLY missing per the JD
 3. **Opportunities** — How to bridge the gaps with existing experience
-4. **Priority Actions** — The top 5 most impactful changes to make
+4. **Priority Actions** — The top changes to make (proportional to JD detail level)
 
-Be specific and reference actual content from the resume."""
+RULES:
+- Only flag gaps for requirements EXPLICITLY stated in the Job Description.
+- Do NOT invent requirements based on general industry knowledge.
+- If the JD is one sentence, your analysis should be concise (3-5 paragraphs max).
+- Be specific and reference actual content from the resume."""
 
         return self._call_groq(system_prompt, user_prompt)
 
@@ -369,11 +377,13 @@ Your response must be ONLY this JSON object:
 
         # ── Calculate a proportional suggestion cap based on JD length ──
         jd_word_count = len(job_description.split())
-        if jd_word_count < 20:
+        profile_word_count = len(profile_text.split())
+        context_words = jd_word_count + profile_word_count
+        if context_words < 40:
             max_suggestions = 3
-        elif jd_word_count < 60:
+        elif context_words < 100:
             max_suggestions = 5
-        elif jd_word_count < 150:
+        elif context_words < 250:
             max_suggestions = 7
         else:
             max_suggestions = 10
@@ -387,26 +397,26 @@ Your response must be ONLY this JSON object:
             "CRITICAL RULES YOU MUST FOLLOW:\n"
             "1. Each 'original_text' MUST be an EXACT substring from the resume — copy it "
             "   character-for-character. Do not paraphrase or approximate.\n"
-            "2. ONLY suggest changes that are DIRECTLY supported by information explicitly "
-            "   stated in the Job Description below. Do NOT invent requirements, skills, "
-            "   technologies, or qualifications that are not mentioned in the JD.\n"
-            "3. If the Job Description is very short or vague, make FEWER suggestions — "
-            f"   never more than {max_suggestions}. "
-            "   It is better to make 2 well-grounded suggestions than 8 speculative ones.\n"
-            "4. Never fabricate metrics, percentages, or achievements that the candidate "
+            "2. Suggestions must be grounded in the Job Description AND/OR the Research-Based "
+            "   Success Profile provided below. Both are valid sources of truth.\n"
+            "3. Do NOT invent requirements, skills, or technologies that appear in NEITHER "
+            "   the JD nor the Success Profile.\n"
+            f"4. Generate at most {max_suggestions} suggestions. "
+            "   Quality over quantity — fewer well-grounded suggestions beat many speculative ones.\n"
+            "5. Never fabricate metrics, percentages, or achievements the candidate "
             "   did not mention. If adding a metric, use a placeholder like 'X%' or 'N+'.\n"
-            "5. Your 'reason' field must cite the SPECIFIC part of the JD that justifies "
+            "6. Your 'reason' field must cite which source (JD or research) justifies "
             "   each suggestion."
         )
         user_prompt = f"""## Target Role: {job_title}
 
-## Job Description (THIS IS THE GROUND TRUTH — only suggest changes supported by this):
+## Job Description:
 {job_description}
 
 ## Gap Analysis:
 {gap_analysis}
 
-## Success Profile (background context only — do NOT treat as JD requirements):
+## Research-Based Success Profile (from market research — treat as valid context):
 {profile_text}
 
 ## Resume:
@@ -417,11 +427,8 @@ Your response must be ONLY this JSON object:
 Generate up to {max_suggestions} specific text replacement suggestions. Each suggestion
 must replace an EXACT piece of text from the resume with an improved version.
 
-IMPORTANT:
-- The JD above is the ONLY source of truth for what the role requires.
-- Do NOT hallucinate requirements that are not in the JD.
-- If the JD is only one sentence, you should produce at most 2-3 suggestions.
-- Every suggestion MUST be traceable to a specific phrase or requirement in the JD.
+Both the Job Description and the Success Profile are valid sources for what the role needs.
+Do NOT invent requirements that appear in neither source.
 
 Respond with ONLY a JSON array in this format, nothing else:
 [
@@ -429,14 +436,14 @@ Respond with ONLY a JSON array in this format, nothing else:
     "section": "Experience|Skills|Summary|Education",
     "original_text": "exact text from resume to find and replace",
     "replacement_text": "improved version of the text",
-    "reason": "This change aligns with the JD requirement: [quote from JD]"
+    "reason": "brief explanation citing JD or research data that justifies this change"
   }}
 ]
 
 Rules:
 - original_text must be a VERBATIM substring from the resume
 - replacement_text should be similar length (±30%) to preserve document layout
-- Focus on: quantifying impact, adding keywords from the JD, improving action verbs
+- Focus on: quantifying impact, adding keywords from JD/research, improving action verbs
 - Do NOT change names, dates, company names, or educational institutions
 - Do NOT invent numbers — use 'X%' or 'N+' placeholders if the resume lacks metrics"""
 
@@ -444,7 +451,8 @@ Rules:
         try:
             suggestions = json.loads(self._extract_json(response))
             if isinstance(suggestions, list):
-                return suggestions
+                # Enforce the cap even if the LLM returns more
+                return suggestions[:max_suggestions]
             return []
         except (json.JSONDecodeError, ValueError, AttributeError) as e:
             logger.error("Failed to parse suggestions: %s", e)
