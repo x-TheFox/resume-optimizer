@@ -367,24 +367,46 @@ Your response must be ONLY this JSON object:
                 "Use a balanced professional tone — confident but not overly formal."
             )
 
+        # ── Calculate a proportional suggestion cap based on JD length ──
+        jd_word_count = len(job_description.split())
+        if jd_word_count < 20:
+            max_suggestions = 3
+        elif jd_word_count < 60:
+            max_suggestions = 5
+        elif jd_word_count < 150:
+            max_suggestions = 7
+        else:
+            max_suggestions = 10
+
         system_prompt = (
             "You are an expert resume optimizer. You must respond with ONLY a valid JSON array, "
             "no other text before or after. "
             "Generate specific text replacement suggestions that improve ATS compatibility, "
             "demonstrate impact, and align with the target role. "
             f"{tone_instruction} "
-            "CRITICAL: Each 'original_text' MUST be an EXACT substring from the resume. "
-            "Copy it character-for-character. Do not paraphrase or approximate."
+            "CRITICAL RULES YOU MUST FOLLOW:\n"
+            "1. Each 'original_text' MUST be an EXACT substring from the resume — copy it "
+            "   character-for-character. Do not paraphrase or approximate.\n"
+            "2. ONLY suggest changes that are DIRECTLY supported by information explicitly "
+            "   stated in the Job Description below. Do NOT invent requirements, skills, "
+            "   technologies, or qualifications that are not mentioned in the JD.\n"
+            "3. If the Job Description is very short or vague, make FEWER suggestions — "
+            f"   never more than {max_suggestions}. "
+            "   It is better to make 2 well-grounded suggestions than 8 speculative ones.\n"
+            "4. Never fabricate metrics, percentages, or achievements that the candidate "
+            "   did not mention. If adding a metric, use a placeholder like 'X%' or 'N+'.\n"
+            "5. Your 'reason' field must cite the SPECIFIC part of the JD that justifies "
+            "   each suggestion."
         )
         user_prompt = f"""## Target Role: {job_title}
 
-## Job Description:
+## Job Description (THIS IS THE GROUND TRUTH — only suggest changes supported by this):
 {job_description}
 
 ## Gap Analysis:
 {gap_analysis}
 
-## Success Profile:
+## Success Profile (background context only — do NOT treat as JD requirements):
 {profile_text}
 
 ## Resume:
@@ -392,8 +414,14 @@ Your response must be ONLY this JSON object:
 
 ---
 
-Generate 5-10 specific text replacement suggestions. Each suggestion must replace an EXACT
-piece of text from the resume with an improved version.
+Generate up to {max_suggestions} specific text replacement suggestions. Each suggestion
+must replace an EXACT piece of text from the resume with an improved version.
+
+IMPORTANT:
+- The JD above is the ONLY source of truth for what the role requires.
+- Do NOT hallucinate requirements that are not in the JD.
+- If the JD is only one sentence, you should produce at most 2-3 suggestions.
+- Every suggestion MUST be traceable to a specific phrase or requirement in the JD.
 
 Respond with ONLY a JSON array in this format, nothing else:
 [
@@ -401,15 +429,16 @@ Respond with ONLY a JSON array in this format, nothing else:
     "section": "Experience|Skills|Summary|Education",
     "original_text": "exact text from resume to find and replace",
     "replacement_text": "improved version of the text",
-    "reason": "brief explanation of why this change improves the resume"
+    "reason": "This change aligns with the JD requirement: [quote from JD]"
   }}
 ]
 
 Rules:
 - original_text must be a VERBATIM substring from the resume
 - replacement_text should be similar length (±30%) to preserve document layout
-- Focus on: quantifying impact, adding keywords, improving action verbs, aligning with role
-- Do NOT change names, dates, company names, or educational institutions"""
+- Focus on: quantifying impact, adding keywords from the JD, improving action verbs
+- Do NOT change names, dates, company names, or educational institutions
+- Do NOT invent numbers — use 'X%' or 'N+' placeholders if the resume lacks metrics"""
 
         response = self._call_groq(system_prompt, user_prompt)
         try:

@@ -297,9 +297,21 @@
         // Downloads
         const dl = data.downloads || {};
         const downloadLinks = [];
+
+        // Helper: build a download link that triggers actual file download
+        function dlHref(url, label) {
+            // For blob URLs, proxy through our endpoint to force Content-Disposition: attachment
+            if (url.includes('blob.vercel-storage.com') || url.includes('.public.blob.vercel-storage.com')) {
+                const name = label.replace(/[^a-zA-Z0-9_.-]/g, '_');
+                return `/api/proxy-download?url=${encodeURIComponent(url)}&name=${encodeURIComponent(name)}`;
+            }
+            return url; // local /download/ paths already serve as attachment
+        }
+
         if (dl.optimized_resume) {
+            const ext = dl.optimized_resume.endsWith('.pdf') ? '.pdf' : '.docx';
             downloadLinks.push(
-                `<a href="${dl.optimized_resume}" class="btn-download" target="_blank" rel="noopener">📄 Optimized Resume</a>`
+                `<a href="${dlHref(dl.optimized_resume, 'Optimized_Resume' + ext)}" class="btn-download" download>📄 Optimized Resume</a>`
             );
             downloadLinks.push(
                 `<button class="btn-whatsapp" onclick="shareToWhatsApp('${dl.optimized_resume}', 'Optimized Resume')">
@@ -310,7 +322,7 @@
         }
         if (dl.interview_prep) {
             downloadLinks.push(
-                `<a href="${dl.interview_prep}" class="btn-download" target="_blank" rel="noopener">🎤 Interview Prep PDF</a>`
+                `<a href="${dlHref(dl.interview_prep, 'Interview_Prep.pdf')}" class="btn-download" download>🎤 Interview Prep PDF</a>`
             );
             downloadLinks.push(
                 `<button class="btn-whatsapp" onclick="shareToWhatsApp('${dl.interview_prep}', 'Interview Prep')">
@@ -321,7 +333,7 @@
         }
         if (dl.cover_letter) {
             downloadLinks.push(
-                `<a href="${dl.cover_letter}" class="btn-download" target="_blank" rel="noopener">✉️ Cover Letter PDF</a>`
+                `<a href="${dlHref(dl.cover_letter, 'Cover_Letter.pdf')}" class="btn-download" download>✉️ Cover Letter PDF</a>`
             );
             downloadLinks.push(
                 `<button class="btn-whatsapp" onclick="shareToWhatsApp('${dl.cover_letter}', 'Cover Letter')">
@@ -332,7 +344,7 @@
         }
         if (dl.talking_points) {
             downloadLinks.push(
-                `<a href="${dl.talking_points}" class="btn-download" target="_blank" rel="noopener">🗣️ Talking Points PDF</a>`
+                `<a href="${dlHref(dl.talking_points, 'Talking_Points.pdf')}" class="btn-download" download>🗣️ Talking Points PDF</a>`
             );
             downloadLinks.push(
                 `<button class="btn-whatsapp" onclick="shareToWhatsApp('${dl.talking_points}', 'Talking Points')">

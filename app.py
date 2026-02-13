@@ -12,9 +12,8 @@ import io
 import uuid
 import logging
 import traceback
-import urllib.parse
-
-from flask import Flask, request, jsonify, send_file, render_template, redirect
+import urllib.parseimport requests
+from flask import Flask, request, jsonify, send_file, render_template, redirect, Response
 
 from config import Config
 from src.blob_storage import BlobStorage
@@ -228,6 +227,47 @@ def download(filename):
         return jsonify({"error": "File not found"}), 404
 
     return send_file(file_path, as_attachment=True, download_name=safe_name)
+
+
+@app.route("/api/proxy-download")
+def proxy_download():
+    """
+    Proxy a Vercel Blob URL and serve it as an attachment download.
+    Query params: url (blob URL), name (desired filename).
+    """
+    blob_url = request.args.get("url", "")
+    name = request.args.get("name", "download")
+
+    if not blob_url:
+        return jsonify({"error": "url parameter required"}), 400
+
+    # Security: only proxy from known blob domains
+    from urllib.parse import urlparse
+    parsed = urlparse(blob_url)
+    allowed_hosts = (
+        "blob.vercel-storage.com",
+        ".public.blob.vercel-storage.com",
+    )
+    if not any(parsed.hostname and (parsed.hostname == h or parsed.hostname.endswith(h)) for h in allowed_hosts):
+        return jsonify({"error": "Invalid URL"}), 403
+
+    try:
+        resp = requests.get(blob_url, timeout=30, stream=True)
+        resp.raise_for_status()
+
+        content_type = resp.headers.get("Content-Type", "application/octet-stream")
+
+        return Response(
+            resp.iter_content(chunk_size=8192),
+            content_type=content_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="{name}"',
+                "Cache-Control": "no-cache",
+            },
+        )
+    except Exception as e:
+        logger.error("Proxy download failed: %s", e)
+        return jsonify({"error": "Download failed"}), 502
 
 
 @app.route("/whatsapp-share", methods=["POST"])
